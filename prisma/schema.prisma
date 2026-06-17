@@ -1,0 +1,361 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// TENANT / MERCHANT
+// ============================================
+model Merchant {
+  id           String    @id @default(uuid())
+  name         String    @db.VarChar(255)
+  slug         String    @unique @db.VarChar(100)
+  logo_url     String?   @db.Text
+  address      String?   @db.Text
+  phone        String?   @db.VarChar(30)
+  email        String?   @db.VarChar(255)
+  tax_id       String?   @db.VarChar(50)
+  subscription String?   @default("trial") @db.VarChar(20)
+  is_active    Boolean?  @default(true)
+  settings     Json?     @default("{}")
+  created_at   DateTime? @default(now())
+  updated_at   DateTime? @default(now())
+
+  stores         Store[]
+  roles          Role[]
+  users          User[]
+  categories     Category[]
+  units          Unit[]
+  brands         Brand[]
+  products       Product[]
+  customerGroups CustomerGroup[]
+  customers      Customer[]
+
+  @@map("merchants")
+}
+
+// ============================================
+// STORE / CABANG
+// ============================================
+model Store {
+  id          String    @id @default(uuid())
+  merchant_id String
+  merchant    Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
+  code        String    @db.VarChar(20)
+  name        String    @db.VarChar(255)
+  address     String?   @db.Text
+  phone       String?   @db.VarChar(30)
+  email       String?   @db.VarChar(255)
+  timezone    String?   @default("Asia/Jakarta") @db.VarChar(50)
+  is_active   Boolean?  @default(true)
+  settings    Json?     @default("{}")
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @default(now())
+
+  users       User[]
+  inventories Inventory[]
+  Transaction Transaction[]
+
+  @@unique([merchant_id, code])
+  @@map("stores")
+}
+
+// ============================================
+// ROLES
+// ============================================
+model Role {
+  id          String    @id @default(uuid())
+  merchant_id String
+  merchant    Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
+  name        String    @db.VarChar(50)
+  permissions Json      @default("[]")
+  is_system   Boolean?  @default(false)
+  created_at  DateTime? @default(now())
+
+  users User[]
+
+  @@unique([merchant_id, name])
+  @@map("roles")
+}
+
+// ============================================
+// USERS
+// ============================================
+model User {
+  id          String   @id @default(uuid())
+  merchant_id String
+  merchant    Merchant @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
+  role_id     String
+  role        Role     @relation(fields: [role_id], references: [id])
+  store_id    String?
+  store       Store?   @relation(fields: [store_id], references: [id])
+
+  name               String        @db.VarChar(255)
+  email              String?       @db.VarChar(255)
+  phone              String?       @db.VarChar(30)
+  pin                String?       @db.VarChar(60)
+  password_hash      String?       @db.VarChar(255)
+  avatar_url         String?       @db.Text
+  is_active          Boolean?      @default(true)
+  last_login_at      DateTime?
+  last_login_ip      String?       @db.VarChar(45)
+  failed_attempts    Int?          @default(0)
+  locked_until       DateTime?
+  two_factor_enabled Boolean?      @default(false)
+  two_factor_secret  String?       @db.VarChar(255)
+  created_at         DateTime?     @default(now())
+  updated_at         DateTime?     @default(now())
+  Transaction        Transaction[]
+
+  @@unique([merchant_id, email])
+  @@map("users")
+}
+
+// ============================================
+// CATEGORIES
+// ============================================
+model Category {
+  id          String     @id @default(uuid())
+  merchant_id String
+  merchant    Merchant   @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
+  parent_id   String?
+  parent      Category?  @relation("CategoryToCategory", fields: [parent_id], references: [id])
+  children    Category[] @relation("CategoryToCategory")
+
+  name        String    @db.VarChar(255)
+  slug        String    @db.VarChar(255)
+  description String?   @db.Text
+  image_url   String?   @db.Text
+  sort_order  Int?      @default(0)
+  is_active   Boolean?  @default(true)
+  created_at  DateTime? @default(now())
+  updated_at  DateTime? @default(now())
+
+  products Product[]
+
+  @@unique([merchant_id, slug])
+  @@map("categories")
+}
+
+// ============================================
+// UNITS
+// ============================================
+model Unit {
+  id          String    @id @default(uuid())
+  merchant_id String
+  merchant    Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
+  name        String    @db.VarChar(50)
+  symbol      String?   @db.VarChar(10)
+  created_at  DateTime? @default(now())
+
+  products Product[]
+
+  @@unique([merchant_id, name])
+  @@map("units")
+}
+
+// ============================================
+// BRANDS
+// ============================================
+model Brand {
+  id          String    @id @default(uuid())
+  merchant_id String
+  merchant    Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
+  name        String    @db.VarChar(255)
+  image_url   String?   @db.Text
+  is_active   Boolean?  @default(true)
+  created_at  DateTime? @default(now())
+
+  products Product[]
+
+  @@unique([merchant_id, name])
+  @@map("brands")
+}
+
+// ============================================
+// PRODUCTS
+// ============================================
+model Product {
+  id          String    @id @default(uuid())
+  merchant_id String
+  merchant    Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
+  category_id String?
+  category    Category? @relation(fields: [category_id], references: [id])
+  brand_id    String?
+  brand       Brand?    @relation(fields: [brand_id], references: [id])
+  unit_id     String?
+  unit        Unit?     @relation(fields: [unit_id], references: [id])
+
+  sku         String  @db.VarChar(100)
+  barcode     String? @db.VarChar(100)
+  name        String  @db.VarChar(255)
+  slug        String? @db.VarChar(255)
+  description String? @db.Text
+  image_urls  Json?   @default("[]") // Using JSON to store array of strings in MySQL
+
+  cost_price      Decimal? @default(0) @db.Decimal(15, 2)
+  selling_price   Decimal? @default(0) @db.Decimal(15, 2)
+  wholesale_price Decimal? @default(0) @db.Decimal(15, 2)
+  member_price    Decimal? @default(0) @db.Decimal(15, 2)
+
+  track_inventory Boolean? @default(true)
+  has_variant     Boolean? @default(false)
+  has_batch       Boolean? @default(false)
+  is_service      Boolean? @default(false)
+  is_active       Boolean? @default(true)
+
+  min_stock     Decimal? @default(0) @db.Decimal(15, 4)
+  max_stock     Decimal? @default(0) @db.Decimal(15, 4)
+  reorder_point Decimal? @default(0) @db.Decimal(15, 4)
+
+  weight    Decimal? @db.Decimal(10, 2)
+  dimension String?  @db.VarChar(100)
+  tags      Json?    @default("[]")
+
+  created_at DateTime? @default(now())
+  updated_at DateTime? @default(now())
+
+  inventories     Inventory[]
+  TransactionItem TransactionItem[]
+
+  @@unique([merchant_id, sku])
+  @@index([merchant_id, barcode])
+  @@map("products")
+}
+
+// ============================================
+// INVENTORY
+// ============================================
+model Inventory {
+  id           String    @id @default(uuid())
+  store_id     String
+  store        Store     @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  product_id   String
+  product      Product   @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  variant_id   String? // TBD: variant implementation later
+  batch_number String?   @db.VarChar(100)
+  expiry_date  DateTime? @db.Date
+
+  stock_on_hand  Decimal? @default(0) @db.Decimal(15, 4)
+  stock_reserved Decimal? @default(0) @db.Decimal(15, 4)
+  // stock_available computed manually in application level to avoid generated columns complexity initially
+  avg_cost       Decimal? @default(0) @db.Decimal(15, 2)
+
+  last_counted_at DateTime?
+  updated_at      DateTime? @default(now())
+
+  @@unique([store_id, product_id, variant_id, batch_number])
+  @@map("inventory")
+}
+
+// ============================================
+// CUSTOMER GROUPS
+// ============================================
+model CustomerGroup {
+  id                String    @id @default(uuid())
+  merchant_id       String
+  merchant          Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
+  name              String    @db.VarChar(100)
+  discount_percent  Decimal?  @default(0) @db.Decimal(5, 2)
+  points_multiplier Decimal?  @default(1.0) @db.Decimal(5, 2)
+  created_at        DateTime? @default(now())
+
+  customers Customer[]
+
+  @@unique([merchant_id, name])
+  @@map("customer_groups")
+}
+
+// ============================================
+// CUSTOMERS
+// ============================================
+model Customer {
+  id          String         @id @default(uuid())
+  merchant_id String
+  merchant    Merchant       @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
+  group_id    String?
+  group       CustomerGroup? @relation(fields: [group_id], references: [id])
+  store_id    String? // Registered store
+
+  code       String?   @db.VarChar(50)
+  name       String    @db.VarChar(255)
+  phone      String?   @db.VarChar(30)
+  email      String?   @db.VarChar(255)
+  address    String?   @db.Text
+  gender     String?   @db.VarChar(10)
+  birth_date DateTime? @db.Date
+  notes      String?   @db.Text
+
+  total_points   Int?      @default(0)
+  total_spent    Decimal?  @default(0) @db.Decimal(15, 2)
+  total_visits   Int?      @default(0)
+  last_visit_at  DateTime?
+  credit_limit   Decimal?  @default(0) @db.Decimal(15, 2)
+  credit_balance Decimal?  @default(0) @db.Decimal(15, 2)
+
+  is_active   Boolean?      @default(true)
+  created_at  DateTime?     @default(now())
+  updated_at  DateTime?     @default(now())
+  Transaction Transaction[]
+
+  @@index([merchant_id, phone])
+  @@index([merchant_id, code])
+  @@map("customers")
+}
+
+// ============================================
+// TRANSACTIONS (POS)
+// ============================================
+model Transaction {
+  id          String    @id @default(uuid())
+  store_id    String
+  store       Store     @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  user_id     String? // kasir
+  user        User?     @relation(fields: [user_id], references: [id])
+  customer_id String?
+  customer    Customer? @relation(fields: [customer_id], references: [id])
+
+  invoice_number   String   @unique @db.VarChar(50)
+  transaction_date DateTime @default(now())
+
+  // Financial
+  subtotal       Decimal? @default(0) @db.Decimal(15, 2)
+  discount_total Decimal? @default(0) @db.Decimal(15, 2)
+  tax_total      Decimal? @default(0) @db.Decimal(15, 2)
+  grand_total    Decimal? @default(0) @db.Decimal(15, 2)
+  paid_amount    Decimal? @default(0) @db.Decimal(15, 2)
+  change_amount  Decimal? @default(0) @db.Decimal(15, 2)
+  payment_method String?  @db.VarChar(50)
+
+  status String? @default("completed") @db.VarChar(20)
+
+  created_at DateTime? @default(now())
+  updated_at DateTime? @default(now())
+
+  items TransactionItem[]
+
+  @@map("transactions")
+}
+
+model TransactionItem {
+  id             String      @id @default(uuid())
+  transaction_id String
+  transaction    Transaction @relation(fields: [transaction_id], references: [id], onDelete: Cascade)
+  product_id     String
+  product        Product     @relation(fields: [product_id], references: [id])
+
+  quantity   Decimal @db.Decimal(15, 4)
+  unit_price Decimal @db.Decimal(15, 2)
+  subtotal   Decimal @db.Decimal(15, 2)
+
+  created_at DateTime? @default(now())
+
+  @@map("transaction_items")
+}
