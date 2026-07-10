@@ -52,7 +52,7 @@ export default function ProductEditPage() {
           minStock: product.min_stock?.toString() || '',
           maxStock: product.max_stock?.toString() || '',
           reorderPoint: product.reorder_point?.toString() || '',
-          taxRate: '11', // default for now
+          taxRate: product.tax_rate?.toString() || '0',
           trackInventory: product.track_inventory ?? true,
           isActive: product.is_active ?? true,
           stock: product.inventories?.[0]?.stock_on_hand?.toString() || '0',
@@ -84,6 +84,7 @@ export default function ProductEditPage() {
           sellingPrice: parseInt(formData.sellingPrice) || 0,
           costPrice: parseInt(formData.costPrice) || 0,
           barcode: formData.barcode,
+          taxRate: formData.taxRate,
         }),
       });
 

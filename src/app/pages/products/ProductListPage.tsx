@@ -14,6 +14,9 @@ import {
   TrendingUp,
   AlertCircle,
   X,
+  CheckSquare,
+  Square,
+  MinusSquare,
 } from 'lucide-react';
 import { useStore } from '../../../store/useStore';
 
@@ -22,6 +25,9 @@ export default function ProductListPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewProduct, setViewProduct] = useState<any>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -35,6 +41,61 @@ export default function ProductListPage() {
   });
 
   const lowStockCount = products.filter(p => p.stock <= 20).length;
+
+  // Selection helpers
+  const filteredIds = filteredProducts.map(p => p.id);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.has(id));
+  const someFilteredSelected = filteredIds.some(id => selectedIds.has(id));
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      // Deselect all filtered
+      const next = new Set(selectedIds);
+      filteredIds.forEach(id => next.delete(id));
+      setSelectedIds(next);
+    } else {
+      // Select all filtered
+      const next = new Set(selectedIds);
+      filteredIds.forEach(id => next.add(id));
+      setSelectedIds(next);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedIds(next);
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkDelete = async () => {
+    setIsBulkDeleting(true);
+    try {
+      const response = await fetch('http://localhost:3000/api/products/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setSelectedIds(new Set());
+        setShowDeleteConfirm(false);
+        fetchProducts();
+      } else {
+        alert(data.error || 'Gagal menghapus produk.');
+      }
+    } catch (error) {
+      console.error('Error bulk deleting:', error);
+      alert('Terjadi kesalahan saat menghapus produk.');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -121,12 +182,52 @@ export default function ProductListPage() {
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <CheckSquare className="w-5 h-5 text-blue-600" />
+            <span className="text-sm font-medium text-blue-900">
+              {selectedIds.size} produk dipilih
+            </span>
+            <button
+              onClick={clearSelection}
+              className="text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
+            >
+              Batal pilih
+            </button>
+          </div>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 font-medium text-sm transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            Hapus {selectedIds.size} Produk
+          </button>
+        </div>
+      )}
+
       {/* Products Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="py-3 px-4 w-12 text-center">
+                  <button
+                    onClick={toggleSelectAll}
+                    className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                    title={allFilteredSelected ? 'Batal pilih semua' : 'Pilih semua'}
+                  >
+                    {allFilteredSelected ? (
+                      <CheckSquare className="w-5 h-5 text-blue-600" />
+                    ) : someFilteredSelected ? (
+                      <MinusSquare className="w-5 h-5 text-blue-400" />
+                    ) : (
+                      <Square className="w-5 h-5" />
+                    )}
+                  </button>
+                </th>
                 <th className="py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider w-12 text-center">No</th>
                 <th className="py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">SKU</th>
                 <th className="py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">Produk</th>
@@ -138,88 +239,106 @@ export default function ProductListPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredProducts.map((product, index) => (
-                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-4 px-6 text-gray-500 text-center">{index + 1}</td>
-                  <td className="py-4 px-6">
-                    <span className="text-sm font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded">{product.sku}</span>
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
-                        <Package className="w-5 h-5 text-gray-400" />
+              {filteredProducts.map((product, index) => {
+                const isSelected = selectedIds.has(product.id);
+                return (
+                  <tr 
+                    key={product.id} 
+                    className={`transition-colors ${isSelected ? 'bg-blue-50/60' : 'hover:bg-gray-50'}`}
+                  >
+                    <td className="py-4 px-4 text-center">
+                      <button
+                        onClick={() => toggleSelect(product.id)}
+                        className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="w-5 h-5 text-blue-600" />
+                        ) : (
+                          <Square className="w-5 h-5" />
+                        )}
+                      </button>
+                    </td>
+                    <td className="py-4 px-6 text-gray-500 text-center">{index + 1}</td>
+                    <td className="py-4 px-6">
+                      <span className="text-sm font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded">{product.sku}</span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                          <Package className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <p className="font-medium text-gray-900">{product.name}</p>
                       </div>
-                      <p className="font-medium text-gray-900">{product.name}</p>
-                    </div>
-                  </td>
-                  <td className="py-4 px-6">
-                    <span className="text-sm text-gray-600 capitalize">{product.category}</span>
-                  </td>
-                  <td className="py-4 px-6 text-right">
-                    <span className="font-medium text-gray-900">
-                      Rp {product.price.toLocaleString('id-ID')}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6 text-center">
-                    <span className={`font-medium ${product.stock <= 20 ? 'text-red-600' : 'text-gray-900'}`}>
-                      {product.stock}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6 text-center">
-                    {product.stock > 20 ? (
-                      <span className="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-                        Aman
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="text-sm text-gray-600 capitalize">{product.category}</span>
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <span className="font-medium text-gray-900">
+                        Rp {product.price.toLocaleString('id-ID')}
                       </span>
-                    ) : (
-                      <span className="inline-block px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
-                        Stok Menipis
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      <span className={`font-medium ${product.stock <= 20 ? 'text-red-600' : 'text-gray-900'}`}>
+                        {product.stock}
                       </span>
-                    )}
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center justify-center gap-2">
-                      <button 
-                        onClick={() => setViewProduct(product)}
-                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <Link 
-                        to={`/products/edit/${product.id}`}
-                        className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors inline-block"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Link>
-                      <button 
-                        onClick={async () => {
-                          if (window.confirm(`Apakah Anda yakin ingin menghapus produk ${product.name}?`)) {
-                            try {
-                              const response = await fetch(`http://localhost:3000/api/products/${product.id}`, {
-                                method: 'DELETE',
-                              });
-                              if (response.ok) {
-                                alert('Produk berhasil dihapus!');
-                                fetchProducts(); // Refresh tabel
-                              } else {
-                                alert('Gagal menghapus produk. Silakan coba lagi.');
+                    </td>
+                    <td className="py-4 px-6 text-center">
+                      {product.stock > 20 ? (
+                        <span className="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                          Aman
+                        </span>
+                      ) : (
+                        <span className="inline-block px-3 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                          Stok Menipis
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="flex items-center justify-center gap-2">
+                        <button 
+                          onClick={() => setViewProduct(product)}
+                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <Link 
+                          to={`/products/edit/${product.id}`}
+                          className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors inline-block"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Link>
+                        <button 
+                          onClick={async () => {
+                            if (window.confirm(`Apakah Anda yakin ingin menghapus produk ${product.name}?`)) {
+                              try {
+                                const response = await fetch(`http://localhost:3000/api/products/${product.id}`, {
+                                  method: 'DELETE',
+                                });
+                                if (response.ok) {
+                                  alert('Produk berhasil dihapus!');
+                                  fetchProducts(); // Refresh tabel
+                                } else {
+                                  alert('Gagal menghapus produk. Silakan coba lagi.');
+                                }
+                              } catch (error) {
+                                console.error('Error deleting product:', error);
+                                alert('Terjadi kesalahan saat menghapus produk.');
                               }
-                            } catch (error) {
-                              console.error('Error deleting product:', error);
-                              alert('Terjadi kesalahan saat menghapus produk.');
                             }
-                          }
-                        }}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                          }}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-gray-500">
+                  <td colSpan={9} className="py-12 text-center text-gray-500">
                     Tidak ada produk yang ditemukan.
                   </td>
                 </tr>
@@ -300,6 +419,77 @@ export default function ProductListPage() {
                 className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex items-center justify-center shrink-0">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Hapus Produk Massal</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Anda akan menghapus <span className="font-bold text-red-600">{selectedIds.size}</span> produk secara permanen.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-red-700">
+                  <strong>Peringatan:</strong> Tindakan ini tidak dapat dibatalkan. Data inventori dan item transaksi terkait juga akan dihapus.
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto">
+                <p className="text-xs text-gray-500 font-medium mb-2 uppercase">Produk yang akan dihapus:</p>
+                <ul className="space-y-1">
+                  {products
+                    .filter(p => selectedIds.has(p.id))
+                    .map(p => (
+                      <li key={p.id} className="text-sm text-gray-700 flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-red-400 rounded-full shrink-0" />
+                        {p.name} <span className="text-gray-400 font-mono text-xs">({p.sku})</span>
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            </div>
+
+            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isBulkDeleting}
+                className="px-5 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={isBulkDeleting}
+                className="px-5 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {isBulkDeleting ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Menghapus...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Ya, Hapus {selectedIds.size} Produk
+                  </>
+                )}
               </button>
             </div>
           </div>

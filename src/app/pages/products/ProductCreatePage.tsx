@@ -44,6 +44,7 @@ export default function ProductCreatePage() {
           sellingPrice: parseInt(formData.sellingPrice) || 0,
           costPrice: parseInt(formData.costPrice) || 0,
           barcode: formData.barcode,
+          taxRate: formData.taxRate,
         }),
       });
 

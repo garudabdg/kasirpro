@@ -286,7 +286,7 @@ export default function POSPage() {
               <span>Rp {subtotal.toLocaleString('id-ID')}</span>
             </div>
             <div className="flex justify-between text-gray-600 text-sm font-medium">
-              <span>Pajak (PPN 11%)</span>
+              <span>Pajak (PPN)</span>
               <span>Rp {tax.toLocaleString('id-ID')}</span>
             </div>
             <div className="flex justify-between text-gray-900 text-xl font-bold pt-3 border-t border-gray-200">
@@ -490,7 +490,7 @@ export default function POSPage() {
                 <span>{subtotal.toLocaleString('id-ID')}</span>
               </div>
               <div className="flex justify-between text-gray-600 text-xs">
-                <span>PPN 11%</span>
+                <span>PPN</span>
                 <span>{tax.toLocaleString('id-ID')}</span>
               </div>
               <div className="flex justify-between text-base mt-2">

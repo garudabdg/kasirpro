@@ -48,6 +48,36 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
+// Bulk Delete Products API
+app.post('/api/products/bulk-delete', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No product IDs provided' });
+    }
+
+    // Delete related inventory first to avoid FK constraint
+    await prisma.inventory.deleteMany({
+      where: { product_id: { in: ids } },
+    });
+
+    // Delete related transaction items
+    await prisma.transactionItem.deleteMany({
+      where: { product_id: { in: ids } },
+    });
+
+    // Delete products
+    const result = await prisma.product.deleteMany({
+      where: { id: { in: ids } },
+    });
+
+    res.json({ success: true, deleted: result.count, message: `${result.count} produk berhasil dihapus` });
+  } catch (error) {
+    console.error('Error bulk deleting products:', error);
+    res.status(500).json({ error: 'Failed to bulk delete products' });
+  }
+});
+
 // GET Single Product API
 app.get('/api/products/:id', async (req, res) => {
   try {
@@ -66,7 +96,7 @@ app.get('/api/products/:id', async (req, res) => {
 app.put('/api/products/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, sku, category, stock, sellingPrice, costPrice, barcode } = req.body;
+    const { name, sku, category, stock, sellingPrice, costPrice, barcode, taxRate } = req.body;
     
     const merchant = await prisma.merchant.findFirst();
     let categoryRecord = null;
@@ -84,6 +114,7 @@ app.put('/api/products/:id', async (req, res) => {
         barcode: barcode || null,
         selling_price: sellingPrice,
         cost_price: costPrice,
+        tax_rate: taxRate !== undefined ? Number(taxRate) : 0,
         ...(categoryRecord && { category_id: categoryRecord.id }),
       }
     });
@@ -106,7 +137,7 @@ app.put('/api/products/:id', async (req, res) => {
 // Create Product API
 app.post('/api/products', async (req, res) => {
   try {
-    const { name, sku, category, stock, sellingPrice, costPrice, barcode } = req.body;
+    const { name, sku, category, stock, sellingPrice, costPrice, barcode, taxRate } = req.body;
     
     // Get default merchant and store (for single-tenant local usage)
     const merchant = await prisma.merchant.findFirst();
@@ -141,6 +172,7 @@ app.post('/api/products', async (req, res) => {
         barcode: barcode || null,
         selling_price: sellingPrice || 0,
         cost_price: costPrice || 0,
+        tax_rate: taxRate !== undefined ? Number(taxRate) : 0,
       }
     });
 
@@ -228,6 +260,31 @@ app.post('/api/transactions', async (req, res) => {
   }
 });
 
+// Update Transaction API
+app.put('/api/transactions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { created_at, payment_method, status } = req.body;
+    
+    const transaction = await prisma.transaction.update({
+      where: { id },
+      data: {
+        ...(created_at && { 
+          created_at: new Date(created_at),
+          transaction_date: new Date(created_at)
+        }),
+        ...(payment_method && { payment_method }),
+        ...(status && { status }),
+      }
+    });
+
+    res.json({ success: true, transaction });
+  } catch (error) {
+    console.error('Error updating transaction:', error);
+    res.status(500).json({ error: 'Failed to update transaction' });
+  }
+});
+
 // GET Transactions API
 app.get('/api/transactions', async (req, res) => {
   try {
@@ -245,6 +302,39 @@ app.get('/api/transactions', async (req, res) => {
   } catch (error) {
     console.error('Error fetching transactions:', error);
     res.status(500).json({ error: 'Failed to fetch transactions' });
+  }
+});
+
+// GET Single Transaction API (for Invoice)
+app.get('/api/transactions/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const transaction = await prisma.transaction.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            product: true
+          }
+        },
+        store: {
+          include: {
+            merchant: true
+          }
+        },
+        customer: true,
+        user: true // cashier
+      }
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ error: 'Transaction not found' });
+    }
+
+    res.json(transaction);
+  } catch (error) {
+    console.error('Error fetching transaction detail:', error);
+    res.status(500).json({ error: 'Failed to fetch transaction detail' });
   }
 });
 

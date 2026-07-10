@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -15,16 +15,16 @@ datasource db {
 // ============================================
 model Merchant {
   id           String    @id @default(uuid())
-  name         String    @db.VarChar(255)
-  slug         String    @unique @db.VarChar(100)
-  logo_url     String?   @db.Text
-  address      String?   @db.Text
-  phone        String?   @db.VarChar(30)
-  email        String?   @db.VarChar(255)
-  tax_id       String?   @db.VarChar(50)
-  subscription String?   @default("trial") @db.VarChar(20)
+  name         String
+  slug         String    @unique
+  logo_url     String?
+  address      String?
+  phone        String?
+  email        String?
+  tax_id       String?
+  subscription String?   @default("trial")
   is_active    Boolean?  @default(true)
-  settings     Json?     @default("{}")
+  settings     String?   @default("{}")
   created_at   DateTime? @default(now())
   updated_at   DateTime? @default(now())
 
@@ -48,14 +48,14 @@ model Store {
   id          String    @id @default(uuid())
   merchant_id String
   merchant    Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
-  code        String    @db.VarChar(20)
-  name        String    @db.VarChar(255)
-  address     String?   @db.Text
-  phone       String?   @db.VarChar(30)
-  email       String?   @db.VarChar(255)
-  timezone    String?   @default("Asia/Jakarta") @db.VarChar(50)
+  code        String
+  name        String
+  address     String?
+  phone       String?
+  email       String?
+  timezone    String?   @default("Asia/Jakarta")
   is_active   Boolean?  @default(true)
-  settings    Json?     @default("{}")
+  settings    String?   @default("{}")
   created_at  DateTime? @default(now())
   updated_at  DateTime? @default(now())
 
@@ -74,8 +74,8 @@ model Role {
   id          String    @id @default(uuid())
   merchant_id String
   merchant    Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
-  name        String    @db.VarChar(50)
-  permissions Json      @default("[]")
+  name        String
+  permissions String    @default("[]")
   is_system   Boolean?  @default(false)
   created_at  DateTime? @default(now())
 
@@ -97,19 +97,19 @@ model User {
   store_id    String?
   store       Store?   @relation(fields: [store_id], references: [id])
 
-  name               String        @db.VarChar(255)
-  email              String?       @db.VarChar(255)
-  phone              String?       @db.VarChar(30)
-  pin                String?       @db.VarChar(60)
-  password_hash      String?       @db.VarChar(255)
-  avatar_url         String?       @db.Text
+  name               String
+  email              String?
+  phone              String?
+  pin                String?
+  password_hash      String?
+  avatar_url         String?
   is_active          Boolean?      @default(true)
   last_login_at      DateTime?
-  last_login_ip      String?       @db.VarChar(45)
+  last_login_ip      String?
   failed_attempts    Int?          @default(0)
   locked_until       DateTime?
   two_factor_enabled Boolean?      @default(false)
-  two_factor_secret  String?       @db.VarChar(255)
+  two_factor_secret  String?
   created_at         DateTime?     @default(now())
   updated_at         DateTime?     @default(now())
   Transaction        Transaction[]
@@ -129,10 +129,10 @@ model Category {
   parent      Category?  @relation("CategoryToCategory", fields: [parent_id], references: [id])
   children    Category[] @relation("CategoryToCategory")
 
-  name        String    @db.VarChar(255)
-  slug        String    @db.VarChar(255)
-  description String?   @db.Text
-  image_url   String?   @db.Text
+  name        String
+  slug        String
+  description String?
+  image_url   String?
   sort_order  Int?      @default(0)
   is_active   Boolean?  @default(true)
   created_at  DateTime? @default(now())
@@ -151,8 +151,8 @@ model Unit {
   id          String    @id @default(uuid())
   merchant_id String
   merchant    Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
-  name        String    @db.VarChar(50)
-  symbol      String?   @db.VarChar(10)
+  name        String
+  symbol      String?
   created_at  DateTime? @default(now())
 
   products Product[]
@@ -168,8 +168,8 @@ model Brand {
   id          String    @id @default(uuid())
   merchant_id String
   merchant    Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
-  name        String    @db.VarChar(255)
-  image_url   String?   @db.Text
+  name        String
+  image_url   String?
   is_active   Boolean?  @default(true)
   created_at  DateTime? @default(now())
 
@@ -193,31 +193,32 @@ model Product {
   unit_id     String?
   unit        Unit?     @relation(fields: [unit_id], references: [id])
 
-  sku         String  @db.VarChar(100)
-  barcode     String? @db.VarChar(100)
-  name        String  @db.VarChar(255)
-  slug        String? @db.VarChar(255)
-  description String? @db.Text
-  image_urls  Json?   @default("[]") // Using JSON to store array of strings in MySQL
+  sku         String
+  barcode     String?
+  name        String
+  slug        String?
+  description String?
+  image_urls  String?   @default("[]")
 
-  cost_price      Decimal? @default(0) @db.Decimal(15, 2)
-  selling_price   Decimal? @default(0) @db.Decimal(15, 2)
-  wholesale_price Decimal? @default(0) @db.Decimal(15, 2)
-  member_price    Decimal? @default(0) @db.Decimal(15, 2)
+  cost_price      Decimal? @default(0)
+  selling_price   Decimal? @default(0)
+  wholesale_price Decimal? @default(0)
+  member_price    Decimal? @default(0)
 
   track_inventory Boolean? @default(true)
   has_variant     Boolean? @default(false)
   has_batch       Boolean? @default(false)
   is_service      Boolean? @default(false)
   is_active       Boolean? @default(true)
+  tax_rate        Decimal? @default(0)
 
-  min_stock     Decimal? @default(0) @db.Decimal(15, 4)
-  max_stock     Decimal? @default(0) @db.Decimal(15, 4)
-  reorder_point Decimal? @default(0) @db.Decimal(15, 4)
+  min_stock     Decimal? @default(0)
+  max_stock     Decimal? @default(0)
+  reorder_point Decimal? @default(0)
 
-  weight    Decimal? @db.Decimal(10, 2)
-  dimension String?  @db.VarChar(100)
-  tags      Json?    @default("[]")
+  weight    Decimal?
+  dimension String?
+  tags      String?   @default("[]")
 
   created_at DateTime? @default(now())
   updated_at DateTime? @default(now())
@@ -239,14 +240,13 @@ model Inventory {
   store        Store     @relation(fields: [store_id], references: [id], onDelete: Cascade)
   product_id   String
   product      Product   @relation(fields: [product_id], references: [id], onDelete: Cascade)
-  variant_id   String? // TBD: variant implementation later
-  batch_number String?   @db.VarChar(100)
-  expiry_date  DateTime? @db.Date
+  variant_id   String?
+  batch_number String?
+  expiry_date  DateTime?
 
-  stock_on_hand  Decimal? @default(0) @db.Decimal(15, 4)
-  stock_reserved Decimal? @default(0) @db.Decimal(15, 4)
-  // stock_available computed manually in application level to avoid generated columns complexity initially
-  avg_cost       Decimal? @default(0) @db.Decimal(15, 2)
+  stock_on_hand  Decimal? @default(0)
+  stock_reserved Decimal? @default(0)
+  avg_cost       Decimal? @default(0)
 
   last_counted_at DateTime?
   updated_at      DateTime? @default(now())
@@ -262,9 +262,9 @@ model CustomerGroup {
   id                String    @id @default(uuid())
   merchant_id       String
   merchant          Merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
-  name              String    @db.VarChar(100)
-  discount_percent  Decimal?  @default(0) @db.Decimal(5, 2)
-  points_multiplier Decimal?  @default(1.0) @db.Decimal(5, 2)
+  name              String
+  discount_percent  Decimal?  @default(0)
+  points_multiplier Decimal?  @default(1.0)
   created_at        DateTime? @default(now())
 
   customers Customer[]
@@ -282,23 +282,23 @@ model Customer {
   merchant    Merchant       @relation(fields: [merchant_id], references: [id], onDelete: Cascade)
   group_id    String?
   group       CustomerGroup? @relation(fields: [group_id], references: [id])
-  store_id    String? // Registered store
+  store_id    String?
 
-  code       String?   @db.VarChar(50)
-  name       String    @db.VarChar(255)
-  phone      String?   @db.VarChar(30)
-  email      String?   @db.VarChar(255)
-  address    String?   @db.Text
-  gender     String?   @db.VarChar(10)
-  birth_date DateTime? @db.Date
-  notes      String?   @db.Text
+  code       String?
+  name       String
+  phone      String?
+  email      String?
+  address    String?
+  gender     String?
+  birth_date DateTime?
+  notes      String?
 
   total_points   Int?      @default(0)
-  total_spent    Decimal?  @default(0) @db.Decimal(15, 2)
+  total_spent    Decimal?  @default(0)
   total_visits   Int?      @default(0)
   last_visit_at  DateTime?
-  credit_limit   Decimal?  @default(0) @db.Decimal(15, 2)
-  credit_balance Decimal?  @default(0) @db.Decimal(15, 2)
+  credit_limit   Decimal?  @default(0)
+  credit_balance Decimal?  @default(0)
 
   is_active   Boolean?      @default(true)
   created_at  DateTime?     @default(now())
@@ -317,24 +317,24 @@ model Transaction {
   id          String    @id @default(uuid())
   store_id    String
   store       Store     @relation(fields: [store_id], references: [id], onDelete: Cascade)
-  user_id     String? // kasir
+  user_id     String?
   user        User?     @relation(fields: [user_id], references: [id])
   customer_id String?
   customer    Customer? @relation(fields: [customer_id], references: [id])
 
-  invoice_number   String   @unique @db.VarChar(50)
+  invoice_number   String   @unique
   transaction_date DateTime @default(now())
 
   // Financial
-  subtotal       Decimal? @default(0) @db.Decimal(15, 2)
-  discount_total Decimal? @default(0) @db.Decimal(15, 2)
-  tax_total      Decimal? @default(0) @db.Decimal(15, 2)
-  grand_total    Decimal? @default(0) @db.Decimal(15, 2)
-  paid_amount    Decimal? @default(0) @db.Decimal(15, 2)
-  change_amount  Decimal? @default(0) @db.Decimal(15, 2)
-  payment_method String?  @db.VarChar(50)
+  subtotal       Decimal? @default(0)
+  discount_total Decimal? @default(0)
+  tax_total      Decimal? @default(0)
+  grand_total    Decimal? @default(0)
+  paid_amount    Decimal? @default(0)
+  change_amount  Decimal? @default(0)
+  payment_method String?
 
-  status String? @default("completed") @db.VarChar(20)
+  status String? @default("completed")
 
   created_at DateTime? @default(now())
   updated_at DateTime? @default(now())
@@ -351,9 +351,9 @@ model TransactionItem {
   product_id     String
   product        Product     @relation(fields: [product_id], references: [id])
 
-  quantity   Decimal @db.Decimal(15, 4)
-  unit_price Decimal @db.Decimal(15, 2)
-  subtotal   Decimal @db.Decimal(15, 2)
+  quantity   Decimal
+  unit_price Decimal
+  subtotal   Decimal
 
   created_at DateTime? @default(now())
 

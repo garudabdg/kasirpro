@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Download, Receipt, Eye, X } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Search, Filter, Download, Receipt, Eye, X, Printer, Edit } from 'lucide-react';
+import { Link } from 'react-router';
 
 export default function TransactionListPage() {
   const [transactions, setTransactions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [viewTransaction, setViewTransaction] = useState<any>(null);
+  const [editTransaction, setEditTransaction] = useState<any>(null);
+  const [editForm, setEditForm] = useState({
+    created_at: '',
+    payment_method: '',
+    status: '',
+  });
 
   useEffect(() => {
     fetchTransactions();
@@ -29,6 +35,45 @@ export default function TransactionListPage() {
   const filteredTransactions = transactions.filter((tx) =>
     tx.invoice_number.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleEditClick = (tx: any) => {
+    const date = new Date(tx.created_at);
+    const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(date.getTime() - tzOffset)).toISOString().slice(0, 16);
+    
+    setEditForm({
+      created_at: localISOTime,
+      payment_method: tx.payment_method || 'cash',
+      status: tx.status || 'completed',
+    });
+    setEditTransaction(tx);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch(`http://localhost:3000/api/transactions/${editTransaction.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          created_at: new Date(editForm.created_at).toISOString(),
+          payment_method: editForm.payment_method,
+          status: editForm.status
+        })
+      });
+
+      if (response.ok) {
+        alert('Transaksi berhasil diperbarui');
+        setEditTransaction(null);
+        fetchTransactions();
+      } else {
+        alert('Gagal memperbarui transaksi');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan koneksi');
+    }
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -131,6 +176,20 @@ export default function TransactionListPage() {
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+                        <button 
+                          onClick={() => handleEditClick(tx)}
+                          className="p-2 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
+                          title="Edit Transaksi"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <Link 
+                          to={`/transactions/${tx.id}`}
+                          className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Cetak Invoice"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </Link>
                       </div>
                     </td>
                   </tr>
@@ -224,14 +283,90 @@ export default function TransactionListPage() {
                 </div>
               </div>
             </div>
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end">
+            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
               <button 
                 onClick={() => setViewTransaction(null)}
                 className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Tutup
               </button>
+              <Link 
+                to={`/transactions/${viewTransaction.id}`}
+                className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+              >
+                <Printer className="w-4 h-4" />
+                Cetak Invoice
+              </Link>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Transaction Modal */}
+      {editTransaction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-900">Edit Transaksi {editTransaction.invoice_number}</h3>
+              <button 
+                onClick={() => setEditTransaction(null)}
+                className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal & Jam</label>
+                <input 
+                  type="datetime-local" 
+                  value={editForm.created_at}
+                  onChange={(e) => setEditForm({...editForm, created_at: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Metode Pembayaran</label>
+                <select 
+                  value={editForm.payment_method}
+                  onChange={(e) => setEditForm({...editForm, payment_method: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="cash">Tunai</option>
+                  <option value="debit">Debit/Kredit</option>
+                  <option value="qris">QRIS</option>
+                  <option value="ewallet">E-Wallet</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select 
+                  value={editForm.status}
+                  onChange={(e) => setEditForm({...editForm, status: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="completed">Selesai (Completed)</option>
+                  <option value="voided">Dibatalkan (Voided)</option>
+                  <option value="pending">Tertunda (Pending)</option>
+                </select>
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setEditTransaction(null)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Simpan Perubahan
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

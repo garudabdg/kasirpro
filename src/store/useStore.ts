@@ -8,6 +8,7 @@ export interface Product {
   category: string;
   stock: number;
   sku: string;
+  taxRate?: number;
 }
 
 export interface CartItem extends Product {
@@ -56,6 +57,7 @@ export const useStore = create<StoreState>((set, get) => ({
                  ? Number(item.inventories[0].stock_on_hand) 
                  : 0,
         sku: item.sku,
+        taxRate: Number(item.tax_rate) || 0,
       }));
       
       set({ products: mappedProducts });
@@ -102,7 +104,9 @@ export const useStore = create<StoreState>((set, get) => ({
     return get().cart.reduce((sum, item) => sum + item.price * item.qty, 0);
   },
   getCartTax: () => {
-    return Math.round(get().getCartSubtotal() * 0.11); // PPN 11%
+    return Math.round(
+      get().cart.reduce((sum, item) => sum + item.price * item.qty * ((item.taxRate || 0) / 100), 0)
+    );
   },
   getCartTotal: () => {
     return get().getCartSubtotal() + get().getCartTax();
